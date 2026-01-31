@@ -26,9 +26,10 @@ export async function createTable(params: {
   createdByAge?: number;
   kind: TableKind;
   betAmount?: number;
-}) {
+}): Promise<TableDoc> {
   const ref = db.collection(TABLES).doc();
-  await ref.set({
+  const now = Date.now();
+  const tableData = {
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     createdByUid: params.createdByUid,
     createdByName: params.createdByName,
@@ -39,8 +40,23 @@ export async function createTable(params: {
     status: "waiting",
     opponentUid: null,
     opponentName: null,
-  });
-  return ref.id;
+  };
+  await ref.set(tableData);
+  
+  // Retorna o objeto TableDoc completo
+  return {
+    id: ref.id,
+    createdAt: now,
+    createdByUid: params.createdByUid,
+    createdByName: params.createdByName,
+    createdByCity: params.createdByCity,
+    createdByAge: params.createdByAge,
+    kind: params.kind,
+    betAmount: params.kind === "bet" ? params.betAmount : undefined,
+    status: "waiting",
+    opponentUid: undefined,
+    opponentName: undefined,
+  };
 }
 
 export async function cancelTable(tableId: string, uid: string) {

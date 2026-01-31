@@ -113,7 +113,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   async function createTable(p: { kind: "free" | "bet"; betAmount?: number }) {
     if (!authUser || !profile) throw new Error("Faça login e complete o perfil");
-    await fbCreateTable({
+    const newTable = await fbCreateTable({
       createdByUid: authUser.uid,
       createdByName: profile.name,
       createdByCity: profile.city,
@@ -121,11 +121,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       kind: p.kind,
       betAmount: p.betAmount,
     });
+    // Automaticamente entra na mesa criada
+    setCurrentTable(newTable);
   }
 
   async function joinTable(tableId: string) {
     if (!authUser || !profile) throw new Error("Faça login e complete o perfil");
     await fbJoinTable(tableId, authUser.uid, profile.name);
+    // Busca a mesa atualizada e seta como currentTable
+    const joinedTable = tables.find(t => t.id === tableId);
+    if (joinedTable) {
+      setCurrentTable({
+        ...joinedTable,
+        status: "playing",
+        opponentUid: authUser.uid,
+        opponentName: profile.name,
+      });
+    }
   }
 
   async function cancelMyTable() {

@@ -6,17 +6,18 @@ import { OnlineUsersModal } from './OnlineUsersModal';
 import { CheckerBoard } from './CheckerBoard';
 
 export function Lobby() {
-  const { auth, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable, profile } = useGame();
+  const { auth, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable } = useGame();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  // Sincroniza currentTable com activeTable do Firebase
+  // Sincroniza currentTable com activeTable do Firebase e atualiza quando muda
   useEffect(() => {
-    if (activeTable && !currentTable) {
+    if (activeTable) {
+      // Se temos uma mesa ativa, sempre atualiza para manter em sync
       setCurrentTable(activeTable);
     }
-  }, [activeTable, currentTable, setCurrentTable]);
+  }, [activeTable?.id, activeTable?.status, activeTable?.opponentUid]);
 
   const waitingTables = tables.filter(t => t.status === 'waiting');
   const myTable = tables.find(t => t.createdByUid === auth.user?.id);

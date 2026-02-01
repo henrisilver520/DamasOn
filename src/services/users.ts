@@ -1,36 +1,69 @@
-import { db, firebase } from "@/firebase/firebase";
+import { db, firebase, storage } from "@/firebase/firebase";
 import type { UserProfile } from "@/types/domain";
 
-const USERS = "users";
+const USERS = "UserDamas";
+
+export async function uploadProfilePhoto(uid: string, file: File): Promise<string> {
+  // caminho fixo (sobrescreve foto antiga)
+  const ref = storage.ref().child(`userdamas/${uid}/profile.jpg`);
+  await ref.put(file);
+  return await ref.getDownloadURL();
+}
 
 export async function upsertUserProfile(profile: Omit<UserProfile, "isOnline">) {
   const ref = db.collection(USERS).doc(profile.uid);
-  await ref.set(
-    {
-      ...profile,
-      isOnline: true,
-      lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
+  const snap = await ref.get();
+
+  const base = {
+    ...profile,
+    isOnline: true,
+    lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (!snap.exists) {
+    await ref.set({
+      ...base,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } else {
+    await ref.set(base, { merge: true });
+  }
+}
+
+export async function setUserOnline(uid: string, isOnline: boolean) {
+  await db.collection(USERS).doc(uid).set(
+    {
+      isOnline,
+      lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
     },
     { merge: true }
   );
 }
 
-export async function setUserOnline(uid: string, isOnline: boolean) {
-  await db
-    .collection(USERS)
-    .doc(uid)
-    .set(
-      {
-        isOnline,
-        lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+export function listenUserProfile(uid: string, onChange: (p: UserProfile | null) => void) {
+  return db.collection(USERS).doc(uid).onSnapshot((snap) => {
+    if (!snap.exists) return onChange(null);
+    const d = snap.data() as any;
+
+    const profile: UserProfile = {
+      uid,
+      name: d.name ?? "",
+      email: d.email ?? "",
+      country: d.country ?? "",
+      city: d.city ?? "",
+      age: Number(d.age ?? 0),
+      photoURL: d.photoURL ?? "",
+      isOnline: Boolean(d.isOnline),
+      lastActivity: d.lastActivity?.toMillis?.() ?? undefined,
+      createdAt: d.createdAt?.toMillis?.() ?? undefined,
+    };
+
+    onChange(profile);
+  });
 }
 
 export function listenOnlineUsers(onChange: (users: UserProfile[]) => void) {
-  // Firestore v8: orderBy + where isOnline true
   return db
     .collection(USERS)
     .where("isOnline", "==", true)
@@ -38,17 +71,22 @@ export function listenOnlineUsers(onChange: (users: UserProfile[]) => void) {
       const users: UserProfile[] = [];
       snap.forEach((d) => {
         const data = d.data() as any;
+
         users.push({
           uid: d.id,
           name: data.name ?? "",
           email: data.email ?? "",
+          country: data.country ?? "",
           city: data.city ?? "",
           age: Number(data.age ?? 0),
+          photoURL: data.photoURL ?? "",
           isOnline: Boolean(data.isOnline),
           lastActivity: data.lastActivity?.toMillis?.() ?? undefined,
           createdAt: data.createdAt?.toMillis?.() ?? undefined,
         });
       });
+
       onChange(users);
     });
 }
+

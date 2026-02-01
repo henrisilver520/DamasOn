@@ -2,12 +2,15 @@ export type UserProfile = {
   uid: string;
   name: string;
   email: string;
+  country?: string;   // ✅ novo
   city: string;
   age: number;
+  photoURL?: string;  // ✅ novo
   isOnline: boolean;
-  lastActivity?: number; // epoch ms
+  lastActivity?: number;
   createdAt?: number;
 };
+
 
 export type TableKind = "free" | "bet";
 export type TableStatus = "waiting" | "playing" | "canceled" | "finished";

@@ -51,34 +51,27 @@ export function OnlineUsersModal({ isOpen, onClose }: OnlineUsersModalProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {onlineUsers.map((user) => (
-                <div
-                  key={user.uid}
-                  className="flex items-center gap-4 p-4 bg-amber-800/30 rounded-xl border border-amber-600/20 hover:bg-amber-800/50 transition"
-                >
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-amber-950 font-bold text-lg">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-2 border-amber-900 rounded-full" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-amber-100 truncate">{user.name}</div>
-                    <div className="text-sm text-amber-400 flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {user.city}
-                      {user.age && (
-                        <span className="text-amber-500">
-                          • {user.age} anos
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {onlineUsers.map((u) => (
+  <div key={u.uid} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+    <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+      {u.photoURL ? (
+        <img src={u.photoURL} alt={u.name} className="w-full h-full object-cover" />
+      ) : (
+        <span className="text-white/60 text-sm font-bold">
+          {(u.name?.[0] ?? "?").toUpperCase()}
+        </span>
+      )}
+    </div>
+
+    <div className="flex-1">
+      <div className="text-white/90 font-semibold">{u.name || "Sem nome"}</div>
+      <div className="text-white/60 text-sm">{u.city || "Sem cidade"}</div>
+    </div>
+
+    <span className="text-green-400 text-xs font-semibold">● online</span>
+  </div>
+))}
+
             </div>
           )}
         </div>

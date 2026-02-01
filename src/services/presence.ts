@@ -1,41 +1,46 @@
-import { setUserOnline } from "@/services/users";
+import { db, firebase } from "@/firebase/firebase";
 
-// Presença simples em Firestore (best-effort):
-// - marca online ao logar
-// - heartbeat atualiza lastActivity e mantém isOnline true
-// - tenta marcar offline ao sair/fechar aba
-// Observação: presença perfeita exige Realtime Database (onDisconnect).
+const USERS = "UserDamas";
 
 export function startPresence(uid: string) {
-  let stopped = false;
+  const ref = db.collection(USERS).doc(uid);
 
-  const heartbeat = async () => {
-    if (stopped) return;
-    try {
-      await setUserOnline(uid, true);
-    } catch {
-      // silencioso: não queremos travar a UI por falha intermitente
-    }
+  // online ao iniciar
+  ref.set(
+    {
+      isOnline: true,
+      lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  const onUnload = () => {
+    ref.set(
+      {
+        isOnline: false,
+        lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
   };
 
-  // primeira marcação
-  void heartbeat();
+  window.addEventListener("beforeunload", onUnload);
 
-  const interval = window.setInterval(heartbeat, 15_000);
-
-  const goOffline = () => {
-    // não dá pra garantir em unload; mas tentamos.
-    void setUserOnline(uid, false);
-  };
-
-  window.addEventListener("beforeunload", goOffline);
-  window.addEventListener("pagehide", goOffline);
+  // heartbeat opcional (bom p/ mobile)
+  const interval = window.setInterval(() => {
+    ref.set(
+      {
+        isOnline: true,
+        lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }, 30000);
 
   return () => {
-    stopped = true;
+    window.removeEventListener("beforeunload", onUnload);
     window.clearInterval(interval);
-    window.removeEventListener("beforeunload", goOffline);
-    window.removeEventListener("pagehide", goOffline);
-    void setUserOnline(uid, false);
+    // marca offline ao parar
+    onUnload();
   };
 }

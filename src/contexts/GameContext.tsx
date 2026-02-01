@@ -1,9 +1,16 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { TableDoc, UserProfile } from "@/types/domain";
 import { onAuthStateChanged, signOut as fbSignOut } from "@/services/auth";
-import { listenTables, createTable as fbCreateTable, joinTable as fbJoinTable, leaveTable as fbLeaveTable, cancelTable as fbCancelTable } from "@/services/tables";
-import { listenOnlineUsers, upsertUserProfile } from "@/services/users";
+import {
+  listenTables,
+  createTable as fbCreateTable,
+  joinTable as fbJoinTable,
+  leaveTable as fbLeaveTable,
+  cancelTable as fbCancelTable,
+} from "@/services/tables";
+import { listenOnlineUsers, upsertUserProfile, listenUserProfile } from "@/services/users";
 import { startPresence } from "@/services/presence";
+  import { joinTableWithWager } from "@/services/wagering"; // 👈 no topo
 
 type AuthUser = {
   uid: string;
@@ -21,7 +28,9 @@ type GameContextValue = {
   tables: TableDoc[];
   onlineUsers: UserProfile[];
   activeTable: TableDoc | null;
-  
+buyCoinsPrompt: null | { stake: number; balance: number };
+closeBuyCoinsPrompt: () => void;
+
   // Compat API (Lobby/TableCard)
   auth: AuthState;
   currentTable: TableDoc | null;
@@ -30,7 +39,16 @@ type GameContextValue = {
   leaveTable: () => Promise<void>;
 
   // auth/profile
-  saveProfile: (p: { name: string; city: string; age: number; email: string; uid: string }) => Promise<void>;
+  saveProfile: (p: {
+    uid: string;
+    email: string;
+    name: string;
+    country: string;
+    city: string;
+    age: number;
+    photoURL?: string;
+  }) => Promise<void>;
+
   signOut: () => Promise<void>;
 
   // tables
@@ -44,75 +62,127 @@ const GameContext = createContext<GameContextValue | null>(null);
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
   const [tables, setTables] = useState<TableDoc[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<UserProfile[]>([]);
-  const [currentTable, setCurrentTable] = useState<TableDoc | null>(null);
 
+  const [currentTable, setCurrentTable] = useState<TableDoc | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+const [buyCoinsPrompt, setBuyCoinsPrompt] = useState<null | { stake: number; balance: number }>(null);
+
+function closeBuyCoinsPrompt() {
+  setBuyCoinsPrompt(null);
+}
+
+  // 1) AUTH STATE
   useEffect(() => {
     const unsub = onAuthStateChanged((u) => {
+      setAuthLoading(false);
+
       if (!u) {
         setAuthUser(null);
         setProfile(null);
         setCurrentTable(null);
         return;
       }
+
       setAuthUser({ uid: u.uid, email: u.email ?? "" });
     });
+
     return () => unsub();
   }, []);
 
-  // listeners lobby
+  // 2) PROFILE LISTENER (UserDamas/{uid})
   useEffect(() => {
-    const unsubTables = listenTables(setTables);
-    const unsubUsers = listenOnlineUsers(setOnlineUsers);
+    if (!authUser) return;
+
+    const unsub = listenUserProfile(authUser.uid, (p) => {
+      setProfile(p);
+    });
+
+    return () => unsub();
+  }, [authUser?.uid]);
+
+  // 3) LOBBY LISTENERS
+  useEffect(() => {
+    const unsubTables = listenTables((list) => setTables(list));
+    const unsubUsers = listenOnlineUsers((list) => setOnlineUsers(list));
     return () => {
       unsubTables();
       unsubUsers();
     };
   }, []);
 
-  // presence
+  // 4) PRESENCE
   useEffect(() => {
     if (!authUser) return;
     const stop = startPresence(authUser.uid);
     return () => stop();
-  }, [authUser]);
+  }, [authUser?.uid]);
 
+  // Mesa ativa: derivada do snapshot (fonte da verdade)
   const activeTable = useMemo(() => {
     if (!authUser) return null;
+    const uid = authUser.uid;
+
     return (
-      tables.find((t) => t.createdByUid === authUser.uid && t.status !== "finished") ??
-      tables.find((t) => t.opponentUid === authUser.uid && t.status !== "finished") ??
+      tables.find((t) => t.createdByUid === uid && t.status !== "finished") ??
+      tables.find((t) => t.opponentUid === uid && t.status !== "finished") ??
       null
     );
-  }, [tables, authUser]);
+  }, [tables, authUser?.uid]);
 
-  async function saveProfile(p: { name: string; city: string; age: number; email: string; uid: string }) {
+  // Mantém currentTable coerente: se activeTable mudar, preferimos activeTable.
+  useEffect(() => {
+    // se você estiver dentro de uma mesa, o snapshot manda a versão certa
+    if (activeTable) setCurrentTable(activeTable);
+    // se você saiu/mesa finalizou
+    else setCurrentTable(null);
+  }, [activeTable?.id, activeTable?.status]);
+
+  // SAVE PROFILE
+  const saveProfile: GameContextValue["saveProfile"] = useCallbackAsync(async (p) => {
     await upsertUserProfile({
       uid: p.uid,
       name: p.name,
       email: p.email,
+      country: p.country,
       city: p.city,
       age: p.age,
+      photoURL: p.photoURL ?? "",
     });
+
+    // UX instantâneo (listener vai consolidar depois)
     setProfile({
       uid: p.uid,
       name: p.name,
       email: p.email,
+      country: p.country,
       city: p.city,
       age: p.age,
+      photoURL: p.photoURL ?? "",
       isOnline: true,
       lastActivity: Date.now(),
       createdAt: Date.now(),
     });
-  }
+  });
 
+  // SIGN OUT / LOGOUT (uma função só, sem duplicidade)
   async function signOut() {
+    setCurrentTable(null);
+    setProfile(null);
+    setAuthUser(null);
     await fbSignOut();
   }
 
+  async function logout() {
+    await signOut();
+  }
+
   async function createTable(p: { kind: "free" | "bet"; betAmount?: number }) {
-    if (!authUser || !profile) throw new Error("Faça login e complete o perfil");
+    if (!authUser) throw new Error("Faça login.");
+    if (!profile) throw new Error("Complete o perfil antes de jogar.");
+
     const newTable = await fbCreateTable({
       createdByUid: authUser.uid,
       createdByName: profile.name,
@@ -121,24 +191,34 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       kind: p.kind,
       betAmount: p.betAmount,
     });
-    // Automaticamente entra na mesa criada
+
     setCurrentTable(newTable);
   }
 
-  async function joinTable(tableId: string) {
-    if (!authUser || !profile) throw new Error("Faça login e complete o perfil");
-    await fbJoinTable(tableId, authUser.uid, profile.name);
-    // Busca a mesa atualizada e seta como currentTable
-    const joinedTable = tables.find(t => t.id === tableId);
-    if (joinedTable) {
-      setCurrentTable({
-        ...joinedTable,
-        status: "playing",
-        opponentUid: authUser.uid,
-        opponentName: profile.name,
-      });
+
+async function joinTable(tableId: string) {
+  if (!authUser) throw new Error("Faça login.");
+  if (!profile) throw new Error("Complete o perfil antes de jogar.");
+
+  const local = tables.find((t) => t.id === tableId);
+  if (!local) throw new Error("Mesa não encontrada localmente.");
+
+  // ✅ Se for mesa com aposta: primeiro bloqueia saldo via Function
+  if (local.kind === "bet") {
+    const result = await joinTableWithWager(tableId);
+
+    if (!result.ok && result.reason === "INSUFFICIENT_BALANCE") {
+      setBuyCoinsPrompt({ stake: result.stake, balance: result.balance });
+      return; // não entra na mesa
     }
   }
+
+  // ✅ Se passou (free ou bet com saldo): entra na mesa no Firestore
+  await fbJoinTable(tableId, authUser.uid, profile.name);
+
+  // currentTable será sincronizado pelo listener
+  if (local) setCurrentTable({ ...local, status: "playing" });
+}
 
   async function cancelMyTable() {
     if (!authUser) return;
@@ -153,21 +233,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setCurrentTable(null);
   }
 
-  const auth: AuthState = useMemo(() => ({
-    user: profile ? { 
-      id: profile.uid, 
-      name: profile.name, 
-      email: profile.email, 
-      city: profile.city, 
-      age: profile.age 
-    } : null,
-    loading: false,
-  }), [profile]);
-
-  const logout = async () => {
-    setCurrentTable(null);
-    await fbSignOut();
-  };
+  const auth: AuthState = useMemo(
+    () => ({
+      user: profile
+        ? {
+            id: profile.uid,
+            name: profile.name,
+            email: profile.email,
+            city: profile.city,
+            age: profile.age,
+          }
+        : null,
+      loading: authLoading,
+    }),
+    [profile, authLoading]
+  );
 
   const value: GameContextValue = {
     authUser,
@@ -175,20 +255,32 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     tables,
     onlineUsers,
     activeTable,
-    // Compat API
+
     auth,
     currentTable,
     setCurrentTable,
+
     logout,
     leaveTable,
+
     saveProfile,
     signOut,
+
     createTable,
     joinTable,
     cancelMyTable,
+	buyCoinsPrompt,
+closeBuyCoinsPrompt,
+
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+}
+
+// helper: evita useCallback com async e dependências esquecidas
+function useCallbackAsync<T extends (...args: any[]) => Promise<any>>(fn: T): T {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => fn, []);
 }
 
 export function useGame() {

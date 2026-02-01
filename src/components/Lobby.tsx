@@ -3,42 +3,134 @@ import { useGame } from '@/contexts/GameContext';
 import { TableCard } from './TableCard';
 import { CreateTableModal } from './CreateTableModal';
 import { OnlineUsersModal } from './OnlineUsersModal';
+import { StatsModal } from './StatsModal';
 import { CheckerBoard } from './CheckerBoard';
+import { BuyCoinsModal } from "./BuyCoinsModal";
 
 export function Lobby() {
-  const { auth, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable } = useGame();
+  const { auth, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable, buyCoinsPrompt, closeBuyCoinsPrompt } = useGame();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUsersModal, setShowUsersModal] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'lobby' | 'waiting' | 'playing'>('lobby');
 
-  // Sincroniza currentTable com activeTable do Firebase e atualiza quando muda
+  // Sincroniza currentTable com activeTable do Firebase
   useEffect(() => {
     if (activeTable) {
-      // Se temos uma mesa ativa, sempre atualiza para manter em sync
       setCurrentTable(activeTable);
     }
-  }, [activeTable?.id, activeTable?.status, activeTable?.opponentUid]);
+  }, [activeTable]);
 
-  const waitingTables = tables.filter(t => t.status === 'waiting');
-  const myTable = tables.find(t => t.createdByUid === auth.user?.id);
-  const isPlaying = currentTable?.status === 'playing';
-  const isWaitingForOpponent = currentTable?.status === 'waiting' && currentTable.createdByUid === auth.user?.id;
+  // Atualiza viewMode baseado no currentTable (inclui quando é setado manualmente após criar mesa)
+  useEffect(() => {
+    if (currentTable) {
+      if (currentTable.status === 'playing') {
+        setViewMode('playing');
+      } else if (currentTable.status === 'waiting') {
+        setViewMode('waiting');
+      }
+    } else {
+      setViewMode('lobby');
+    }
+  }, [currentTable?.id, currentTable?.status]);
 
-  // Se está em uma partida ativa e não minimizado, mostra o tabuleiro
-  if (isPlaying && !isMinimized && currentTable) {
+  const waitingTables = tables.filter(t => t.status === 'waiting' && t.createdByUid !== auth.user?.id);
+  const myTable = tables.find(t => t.createdByUid === auth.user?.id && t.status !== 'finished');
+  const isCreator = currentTable?.createdByUid === auth.user?.id;
+
+  // TELA DE ESPERA (criador aguardando oponente)
+  if (viewMode === 'waiting' && currentTable && isCreator) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950">
-        <CheckerBoard
-          table={currentTable}
-          playerColor={currentTable.createdByUid === auth.user?.id ? 'white' : 'black'}
-          onExit={() => {
-            leaveTable();
-          }}
-        />
+      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950 flex items-center justify-center p-4">
+        <div className="bg-amber-900/60 rounded-3xl border-2 border-amber-600/40 p-8 max-w-md w-full text-center shadow-2xl">
+          {/* Ícone animado */}
+          <div className="w-24 h-24 mx-auto mb-6 relative">
+            <div className="absolute inset-0 rounded-full border-4 border-amber-500/20 animate-ping" />
+            <div className="w-24 h-24 rounded-full bg-amber-700/50 flex items-center justify-center">
+              <svg className="w-12 h-12 text-amber-200 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-amber-100 mb-2">Aguardando Oponente</h2>
+          <p className="text-amber-300/80 mb-6">
+            Sua mesa está aberta e visível para outros jogadores.
+          </p>
+
+          {/* Detalhes da mesa */}
+          <div className="bg-amber-950/40 rounded-xl p-4 mb-6 text-left">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-amber-400">Tipo:</span>
+              <span className="text-amber-200">
+                {currentTable.kind === 'bet' ? `Aposta (${currentTable.betAmount} fichas)` : 'Amistoso'}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-amber-400">Criador:</span>
+              <span className="text-amber-200">{currentTable.createdByName}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-amber-400">Status:</span>
+              <span className="text-green-400 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                Aguardando...
+              </span>
+            </div>
+          </div>
+
+          {/* Botões */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setViewMode('lobby')}
+              className="flex-1 px-4 py-3 bg-amber-700/50 hover:bg-amber-600/50 text-amber-200 rounded-xl font-medium transition"
+            >
+              Minimizar
+            </button>
+            <button
+              onClick={() => {
+                leaveTable();
+                setViewMode('lobby');
+              }}
+              className="flex-1 px-4 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-xl font-medium transition"
+            >
+              Cancelar Mesa
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // TELA DO JOGO (playing)
+   // TELA DO JOGO (playing)
+  if (viewMode === 'playing' && currentTable) {
+    return (
+      <>
+        <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950">
+          <CheckerBoard
+            table={currentTable}
+            playerColor={isCreator ? 'white' : 'black'}
+            onMinimize={() => setViewMode('lobby')}
+            onExit={() => {
+              leaveTable();
+              setViewMode('lobby');
+            }}
+          />
+        </div>
+
+        <BuyCoinsModal
+          open={!!buyCoinsPrompt}
+          stake={buyCoinsPrompt?.stake}
+          balance={buyCoinsPrompt?.balance}
+          onClose={closeBuyCoinsPrompt}
+        />
+      </>
+    );
+  }
+
+
+  // LOBBY (visualização normal)
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950">
       {/* Header */}
@@ -57,6 +149,17 @@ export function Lobby() {
 
           {/* User info */}
           <div className="flex items-center gap-4">
+            {/* Minha mesa - botão rápido */}
+            {myTable && (
+              <button
+                onClick={() => myTable.status === 'waiting' ? setViewMode('waiting') : setViewMode('playing')}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-amber-100 transition"
+              >
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                Ver Minha Mesa
+              </button>
+            )}
+
             {/* Online users button */}
             <button
               onClick={() => setShowUsersModal(true)}
@@ -67,6 +170,17 @@ export function Lobby() {
               <span className="bg-amber-600 px-2 py-0.5 rounded-full text-xs font-bold">
                 {onlineUsers.length}
               </span>
+            </button>
+
+            {/* Stats button */}
+            <button
+              onClick={() => setShowStatsModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-800/50 hover:bg-amber-700/50 rounded-lg text-amber-200 transition"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span className="hidden sm:inline">Estatísticas</span>
             </button>
 
             {/* User profile */}
@@ -92,33 +206,25 @@ export function Lobby() {
         </div>
       </header>
 
-      {/* Waiting for opponent banner */}
-      {isWaitingForOpponent && currentTable && (
-        <div className="bg-amber-500/20 border-b border-amber-500/30">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      {/* Banner de mesa ativa minimizada */}
+      {myTable && (
+        <div className="bg-amber-600/20 border-b border-amber-500/30">
+          <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="animate-spin w-5 h-5 border-2 border-amber-300 border-t-transparent rounded-full" />
-              <span className="text-amber-200">
-                Aguardando oponente para sua mesa...
-                {currentTable.kind === 'bet' && (
-                  <span className="ml-2 text-yellow-300">({currentTable.betAmount} fichas)</span>
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              <span className="text-amber-200 text-sm">
+                Você tem uma mesa {myTable.status === 'waiting' ? 'aguardando oponente' : 'em andamento'}
+                {myTable.kind === 'bet' && (
+                  <span className="ml-2 text-yellow-300">({myTable.betAmount} fichas)</span>
                 )}
               </span>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsMinimized(false)}
-                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-amber-100 rounded-lg text-sm font-medium transition"
-              >
-                Ver Mesa
-              </button>
-              <button
-                onClick={() => leaveTable()}
-                className="px-4 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm font-medium transition"
-              >
-                Cancelar
-              </button>
-            </div>
+            <button
+              onClick={() => myTable.status === 'waiting' ? setViewMode('waiting') : setViewMode('playing')}
+              className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-amber-100 rounded-lg text-sm font-medium transition"
+            >
+              Ver Mesa
+            </button>
           </div>
         </div>
       )}
@@ -208,6 +314,7 @@ export function Lobby() {
       {/* Modals */}
       <CreateTableModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
       <OnlineUsersModal isOpen={showUsersModal} onClose={() => setShowUsersModal(false)} />
+      <StatsModal isOpen={showStatsModal} onClose={() => setShowStatsModal(false)} />
     </div>
   );
 }

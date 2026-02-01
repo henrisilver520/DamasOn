@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { signInEmailPassword, signUpEmailPassword } from "@/services/auth";
 import { useGame } from "@/contexts/GameContext";
+import { uploadProfilePhoto } from "@/services/users";
+
+
 
 type Mode = "login" | "signup";
 
@@ -13,8 +16,13 @@ export function LoginForm() {
 
   // perfil
   const [name, setName] = useState("");
-  const [city, setCity] = useState("");
-  const [age, setAge] = useState<number>(18);
+const [country, setCountry] = useState("");
+const [city, setCity] = useState("");
+const [age, setAge] = useState<number>(18);
+
+const [photoFile, setPhotoFile] = useState<File | null>(null);
+const [photoPreview, setPhotoPreview] = useState<string>("");
+
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,27 +31,71 @@ export function LoginForm() {
     return Boolean(authUser && !profile);
   }, [authUser, profile]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      if (mode === "signup") {
-        const user = await signUpEmailPassword(email, password);
-        await saveProfile({ uid: user.uid, email, name, city, age });
-      } else {
-        const user = await signInEmailPassword(email, password);
-        // no login, se o perfil ainda não estiver salvo, pedir pra completar
-        if (name && city && age) {
-          await saveProfile({ uid: user.uid, email, name, city, age });
-        }
-      }
-    } catch (err: any) {
-      setError(err?.message ?? "Erro ao autenticar");
-    } finally {
-      setBusy(false);
-    }
+
+function onPickPhoto(file: File | null) {
+  setPhotoFile(file);
+  if (!file) {
+    setPhotoPreview("");
+    return;
   }
+  const url = URL.createObjectURL(file);
+  setPhotoPreview(url);
+}
+
+
+ async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setError(null);
+  setBusy(true);
+
+  try {
+  if (mode === "signup") {
+    if (!name || !country || !city) throw new Error("Preencha nome, país e cidade.");
+    if (!age || age < 1) throw new Error("Idade inválida.");
+
+    console.log("[SIGNUP] criando usuário no Auth...", email);
+
+    const user = await signUpEmailPassword(email, password);
+    console.log("[SIGNUP] Auth OK uid=", user.uid);
+
+    let photoURL = "";
+    if (photoFile) {
+      console.log("[SIGNUP] fazendo upload da foto...");
+      try {
+        photoURL = await uploadProfilePhoto(user.uid, photoFile);
+        console.log("[SIGNUP] upload OK photoURL=", photoURL);
+      } catch (e: any) {
+        console.error("[SIGNUP] upload falhou (vou continuar sem foto):", e);
+        // ✅ não bloqueia o cadastro se Storage estiver com rules erradas
+        photoURL = "";
+      }
+    }
+
+    console.log("[SIGNUP] salvando perfil em UserDamas...");
+    await saveProfile({
+      uid: user.uid,
+      email,
+      name,
+      country,
+      city,
+      age,
+      photoURL,
+    });
+    console.log("[SIGNUP] perfil salvo com sucesso!");
+  } else {
+    console.log("[LOGIN] login...");
+    await signInEmailPassword(email, password);
+    console.log("[LOGIN] ok");
+  }
+} catch (err: any) {
+  console.error("[AUTH FLOW ERROR]", err);
+  setError(err?.message ?? "Erro ao autenticar");
+} finally {
+  setBusy(false);
+}
+
+}
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-amber-950 flex items-center justify-center p-4">
@@ -119,51 +171,86 @@ export function LoginForm() {
 
             {/* Profile Fields */}
             {(mode === "signup" || needsProfile) && (
-              <div className="bg-amber-800/30 rounded-2xl border border-amber-600/20 p-5 space-y-4">
-                <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Dados do perfil
-                </p>
-                
-                <div>
-                  <label className="block text-xs font-medium text-amber-400 mb-1">Nome completo</label>
-                  <input
-                    className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100 placeholder-amber-600/50 focus:outline-none focus:border-amber-500/50 transition-all"
-                    placeholder="Seu nome"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required={mode === "signup" || needsProfile}
-                  />
-                </div>
+  <div className="bg-amber-800/30 rounded-2xl border border-amber-600/20 p-5 space-y-4">
+    <p className="text-sm font-semibold text-amber-300">
+      {needsProfile ? "Complete seu cadastro" : "Dados do cadastro"}
+    </p>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-amber-400 mb-1">Cidade</label>
-                    <input
-                      className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100 placeholder-amber-600/50 focus:outline-none focus:border-amber-500/50 transition-all"
-                      placeholder="Sua cidade"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      required={mode === "signup" || needsProfile}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-amber-400 mb-1">Idade</label>
-                    <input
-                      className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100 focus:outline-none focus:border-amber-500/50 transition-all"
-                      type="number"
-                      value={age}
-                      onChange={(e) => setAge(Number(e.target.value))}
-                      min={1}
-                      max={120}
-                      required={mode === "signup" || needsProfile}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+    {/* Foto */}
+    <div>
+      <label className="block text-xs font-medium text-amber-400 mb-2">Foto de perfil</label>
+
+      <div className="flex items-center gap-3">
+        <div className="w-14 h-14 rounded-full bg-amber-950/50 border border-amber-600/30 overflow-hidden flex items-center justify-center">
+          {photoPreview ? (
+            <img src={photoPreview} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-amber-500 text-xs">sem foto</span>
+          )}
+        </div>
+
+        <input
+          className="block w-full text-sm text-amber-200 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-amber-500 file:text-amber-950 file:font-semibold hover:file:bg-amber-600"
+          type="file"
+          accept="image/*"
+          onChange={(e) => onPickPhoto(e.target.files?.[0] ?? null)}
+          required={mode === "signup" || needsProfile}
+        />
+      </div>
+    </div>
+
+    {/* Nome */}
+    <div>
+      <label className="block text-xs font-medium text-amber-400 mb-1">Nome</label>
+      <input
+        className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100"
+        placeholder="Seu nome"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required={mode === "signup" || needsProfile}
+      />
+    </div>
+
+    {/* País + Cidade + Idade */}
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs font-medium text-amber-400 mb-1">País</label>
+        <input
+          className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100"
+          placeholder="Brasil"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          required={mode === "signup" || needsProfile}
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-amber-400 mb-1">Cidade</label>
+        <input
+          className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100"
+          placeholder="Sua cidade"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          required={mode === "signup" || needsProfile}
+        />
+      </div>
+    </div>
+
+    <div>
+      <label className="block text-xs font-medium text-amber-400 mb-1">Idade</label>
+      <input
+        className="w-full bg-amber-950/50 border border-amber-600/30 rounded-lg px-3 py-2 text-amber-100"
+        type="number"
+        value={age}
+        onChange={(e) => setAge(Number(e.target.value))}
+        min={1}
+        max={120}
+        required={mode === "signup" || needsProfile}
+      />
+    </div>
+  </div>
+)}
+
 
             {/* Error */}
             {error && (
@@ -208,3 +295,5 @@ export function LoginForm() {
     </div>
   );
 }
+
+

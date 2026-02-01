@@ -8,6 +8,7 @@ admin.initializeApp();
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "https://adorable-platypus-4d6896.netlify.app",
+    "https://damaonline.netlify.app",
 ];
 
 // ✅ joinTable (callable) com CORS explícito

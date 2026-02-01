@@ -1,6 +1,7 @@
 // src/components/BuyCoinsModal.tsx
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { startCheckout } from "@/services/payments";
+import { coinOffers } from "@/config/coins";
 
 type BuyCoinsModalProps = {
   open: boolean;
@@ -9,48 +10,15 @@ type BuyCoinsModalProps = {
   onClose: () => void;
 };
 
-type Offer = {
-  title: string;
-  description: string;
-  priceId: string;
-  mode: "payment" | "subscription";
-  tag?: string;
-};
-
 export function BuyCoinsModal({ open, stake, balance, onClose }: BuyCoinsModalProps) {
   const [loading, setLoading] = useState<string | null>(null);
-
-  const offers = useMemo<Offer[]>(
-    () => [
-      {
-        title: "Pacote 1.000 moedas",
-        description: "Entrada rápida para partidas e apostas menores.",
-        priceId: "price_pack_10", // 🔁 TROQUE PELO SEU PRICE ID REAL
-        mode: "payment",
-      },
-      {
-        title: "Pacote 5.000 moedas",
-        description: "Melhor custo-benefício para jogar com frequência.",
-        priceId: "price_pack_50", // 🔁 TROQUE PELO SEU PRICE ID REAL
-        mode: "payment",
-        tag: "Mais vendido",
-      },
-      {
-        title: "Assinatura mensal",
-        description: "Receba moedas todo mês (cobrança recorrente).",
-        priceId: "price_sub_month", // 🔁 TROQUE PELO SEU PRICE ID REAL
-        mode: "subscription",
-        tag: "Plano",
-      },
-    ],
-    []
-  );
 
   if (!open) return null;
 
   const missing = Math.max(0, (stake ?? 0) - (balance ?? 0));
+  const hasStake = typeof stake === "number";
 
-  async function handleBuy(offer: Offer) {
+  async function handleBuy(offer: (typeof coinOffers)[number]) {
     try {
       setLoading(offer.priceId);
       await startCheckout(offer.priceId, offer.mode);
@@ -66,9 +34,13 @@ export function BuyCoinsModal({ open, stake, balance, onClose }: BuyCoinsModalPr
       <div className="w-full max-w-xl rounded-2xl border border-amber-600/30 bg-zinc-950 p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-amber-200">Saldo insuficiente</h2>
+            <h2 className="text-xl font-bold text-amber-200">
+              {hasStake ? "Saldo insuficiente" : "Comprar moedas"}
+            </h2>
             <p className="mt-1 text-sm text-amber-200/70">
-              Você precisa de <b>{stake ?? 0}</b> moedas para entrar nesta mesa.
+              {hasStake
+                ? `Você precisa de ${stake ?? 0} moedas para entrar nesta mesa.`
+                : "Recarregue seu saldo para participar de partidas apostadas."}
             </p>
           </div>
 
@@ -84,13 +56,15 @@ export function BuyCoinsModal({ open, stake, balance, onClose }: BuyCoinsModalPr
           <div className="text-sm text-amber-200/80">
             Seu saldo atual: <b className="text-amber-200">{balance ?? 0}</b>
           </div>
-          <div className="text-sm text-amber-200/80">
-            Falta: <b className="text-amber-200">{missing}</b> moedas
-          </div>
+          {hasStake && (
+            <div className="text-sm text-amber-200/80">
+              Falta: <b className="text-amber-200">{missing}</b> moedas
+            </div>
+          )}
         </div>
 
         <div className="mt-5 space-y-3">
-          {offers.map((o) => (
+          {coinOffers.map((o) => (
             <div
               key={o.priceId}
               className="flex items-center justify-between gap-4 rounded-2xl border border-amber-600/20 bg-zinc-900/30 p-4"

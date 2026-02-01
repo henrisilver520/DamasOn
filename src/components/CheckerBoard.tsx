@@ -69,7 +69,7 @@ export function CheckerBoard({ table, playerColor, onExit, onMinimize }: Checker
         const myCaptures = playerColor === "white" ? capturedByWhite : capturedByBlack;
         const myLosses = playerColor === "white" ? capturedByBlack : capturedByWhite;
 
-await updateMatchResult(authUser.uid, profile.name, result, myCaptures, myLosses, gameId);
+        await updateMatchResult(authUser.uid, profile.name, result, myCaptures, myLosses, gameId);
 
         // Marca resultado no doc do jogo (sem mexer no estado do tabuleiro)
         await db
@@ -210,7 +210,7 @@ await updateMatchResult(authUser.uid, profile.name, result, myCaptures, myLosses
             <div>
               <h1 className="text-lg font-bold text-amber-100">Partida em Andamento</h1>
               <p className="text-sm text-amber-400">
-                {table.kind === "bet" ? `Aposta: ${table.betAmount} fichas` : "Partida amistosa"}
+                {table.kind === "bet" ? `Aposta: ${table.stake ?? 0} moedas` : "Partida amistosa"}
               </p>
             </div>
           </div>
@@ -360,7 +360,7 @@ await updateMatchResult(authUser.uid, profile.name, result, myCaptures, myLosses
             <h3 className="text-xl font-bold text-amber-100 mb-4">Confirmar Desistência</h3>
             <p className="text-amber-300 mb-6">
               Tem certeza que deseja desistir?{" "}
-              {table.kind === "bet" ? `Você perderá ${table.betAmount} fichas.` : "Você perderá esta partida."}
+              {table.kind === "bet" ? `Você perderá ${table.stake ?? 0} moedas.` : "Você perderá esta partida."}
             </p>
             <div className="flex gap-3">
               <button
@@ -392,12 +392,12 @@ await updateMatchResult(authUser.uid, profile.name, result, myCaptures, myLosses
             <p className="text-amber-300 mb-6">
               {winner === playerColor
                 ? table.kind === "bet"
-                  ? `Você ganhou ${table.betAmount} fichas!`
+                  ? `Você ganhou ${table.stake ?? 0} moedas!`
                   : "Parabéns pela vitória!"
                 : winner === "draw"
                 ? "A partida terminou empatada."
                 : table.kind === "bet"
-                ? `Você perdeu ${table.betAmount} fichas.`
+                ? `Você perdeu ${table.stake ?? 0} moedas.`
                 : "Não foi dessa vez."}
             </p>
 

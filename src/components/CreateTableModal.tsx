@@ -9,7 +9,7 @@ interface CreateTableModalProps {
 export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
   const { createTable } = useGame();
   const [isBet, setIsBet] = useState(false);
-  const [betAmount, setBetAmount] = useState(100);
+  const [stake, setStake] = useState(100);
   const [busy, setBusy] = useState(false);
 
   if (!isOpen) return null;
@@ -20,7 +20,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
     try {
       await createTable({
         kind: isBet ? 'bet' : 'free',
-        betAmount: isBet ? betAmount : undefined,
+        stake: isBet ? stake : undefined,
       });
       onClose();
     } catch (err) {
@@ -96,7 +96,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                   <span className={`font-medium ${isBet ? 'text-yellow-100' : 'text-amber-400'}`}>
                     Apostado
                   </span>
-                  <span className="text-xs text-amber-500">Com fichas</span>
+                  <span className="text-xs text-amber-500">Com moedas</span>
                 </div>
               </button>
             </div>
@@ -112,15 +112,15 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                   min="50"
                   max="10000"
                   step="50"
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(Number(e.target.value))}
+                  value={stake}
+                  onChange={(e) => setStake(Number(e.target.value))}
                   className="flex-1 h-2 bg-amber-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
                 />
                 <div className="flex items-center gap-2 bg-yellow-500/20 text-yellow-300 px-4 py-2 rounded-xl font-bold min-w-[100px] justify-center">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                   </svg>
-                  {betAmount}
+                  {stake}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -128,7 +128,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                   <button
                     key={amount}
                     type="button"
-                    onClick={() => setBetAmount(amount)}
+                    onClick={() => setStake(amount)}
                     className="flex-1 py-1.5 bg-amber-800/50 hover:bg-amber-700/50 text-amber-300 rounded-lg text-sm transition"
                   >
                     {amount}
@@ -149,7 +149,7 @@ export function CreateTableModal({ isOpen, onClose }: CreateTableModalProps) {
                 <ul className="space-y-1 text-amber-400/80">
                   <li>• Sua mesa ficará visível para todos os jogadores</li>
                   <li>• Você pode cancelar enquanto aguarda oponente</li>
-                  <li>• {isBet ? 'O vencedor recebe as fichas apostadas' : 'Partida amistosa sem apostas'}</li>
+                  <li>• {isBet ? 'O vencedor recebe as moedas apostadas' : 'Partida amistosa sem apostas'}</li>
                 </ul>
               </div>
             </div>

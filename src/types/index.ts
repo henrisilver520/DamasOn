@@ -16,7 +16,7 @@ export interface Table {
   hostName: string;
   hostCity: string;
   type: 'free' | 'bet';
-  betAmount?: number;
+  stake?: number;
   status: 'waiting' | 'playing' | 'finished';
   opponentId?: string;
   opponentName?: string;
@@ -74,7 +74,7 @@ export interface GameContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, city: string, age: number, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  createTable: (name: string, type: 'free' | 'bet', betAmount?: number) => Promise<string>;
+  createTable: (name: string, type: 'free' | 'bet', stake?: number) => Promise<string>;
   joinTable: (tableId: string) => Promise<void>;
   leaveTable: (tableId: string) => Promise<void>;
   cancelTable: (tableId: string) => Promise<void>;

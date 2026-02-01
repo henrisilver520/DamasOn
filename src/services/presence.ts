@@ -1,6 +1,6 @@
 import { db, firebase } from "@/firebase/firebase";
 
-const USERS = "UserDamas";
+const USERS = "UsersDamas";
 
 export function startPresence(uid: string) {
   const ref = db.collection(USERS).doc(uid);

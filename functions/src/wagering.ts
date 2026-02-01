@@ -19,7 +19,11 @@ export async function joinTableWithWager(uid: string, tableId: string) {
     }
 
     const table = tableSnap.data()!
-    const stake = Number(table.stake)
+    const stake = Number(table.stake ?? table.betAmount ?? 0)
+
+    if (!stake || stake <= 0) {
+      throw new HttpsError("failed-precondition", "Mesa sem valor de aposta válido.")
+    }
 
     const user = userSnap.data() || {}
     const balance = Number(user.balance || 0)

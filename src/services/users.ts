@@ -1,7 +1,12 @@
 import { db, firebase, storage } from "@/firebase/firebase";
 import type { UserProfile } from "@/types/domain";
 
-const USERS = "UserDamas";
+const USERS = "UsersDamas";
+
+type UserProfilePayload = Omit<UserProfile, "isOnline" | "balance" | "locked"> & {
+  balance?: number;
+  locked?: number;
+};
 
 export async function uploadProfilePhoto(uid: string, file: File): Promise<string> {
   // caminho fixo (sobrescreve foto antiga)
@@ -10,7 +15,7 @@ export async function uploadProfilePhoto(uid: string, file: File): Promise<strin
   return await ref.getDownloadURL();
 }
 
-export async function upsertUserProfile(profile: Omit<UserProfile, "isOnline">) {
+export async function upsertUserProfile(profile: UserProfilePayload) {
   const ref = db.collection(USERS).doc(profile.uid);
   const snap = await ref.get();
 
@@ -24,9 +29,17 @@ export async function upsertUserProfile(profile: Omit<UserProfile, "isOnline">) 
   if (!snap.exists) {
     await ref.set({
       ...base,
+      balance: profile.balance ?? 0,
+      locked: profile.locked ?? 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   } else {
+    if (profile.balance !== undefined) {
+      base.balance = profile.balance;
+    }
+    if (profile.locked !== undefined) {
+      base.locked = profile.locked;
+    }
     await ref.set(base, { merge: true });
   }
 }
@@ -54,6 +67,8 @@ export function listenUserProfile(uid: string, onChange: (p: UserProfile | null)
       city: d.city ?? "",
       age: Number(d.age ?? 0),
       photoURL: d.photoURL ?? "",
+      balance: Number(d.balance ?? 0),
+      locked: Number(d.locked ?? 0),
       isOnline: Boolean(d.isOnline),
       lastActivity: d.lastActivity?.toMillis?.() ?? undefined,
       createdAt: d.createdAt?.toMillis?.() ?? undefined,
@@ -80,6 +95,8 @@ export function listenOnlineUsers(onChange: (users: UserProfile[]) => void) {
           city: data.city ?? "",
           age: Number(data.age ?? 0),
           photoURL: data.photoURL ?? "",
+          balance: Number(data.balance ?? 0),
+          locked: Number(data.locked ?? 0),
           isOnline: Boolean(data.isOnline),
           lastActivity: data.lastActivity?.toMillis?.() ?? undefined,
           createdAt: data.createdAt?.toMillis?.() ?? undefined,
@@ -89,4 +106,3 @@ export function listenOnlineUsers(onChange: (users: UserProfile[]) => void) {
       onChange(users);
     });
 }
-

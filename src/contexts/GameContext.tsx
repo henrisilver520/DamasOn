@@ -10,7 +10,7 @@ import {
 } from "@/services/tables";
 import { listenOnlineUsers, upsertUserProfile, listenUserProfile } from "@/services/users";
 import { startPresence } from "@/services/presence";
-  import { joinTableWithWager } from "@/services/wagering"; // 👈 no topo
+import { joinTableWithWager } from "@/services/wagering"; // 👈 no topo
 
 type AuthUser = {
   uid: string;
@@ -28,8 +28,8 @@ type GameContextValue = {
   tables: TableDoc[];
   onlineUsers: UserProfile[];
   activeTable: TableDoc | null;
-buyCoinsPrompt: null | { stake: number; balance: number };
-closeBuyCoinsPrompt: () => void;
+  buyCoinsPrompt: null | { stake: number; balance: number };
+  closeBuyCoinsPrompt: () => void;
 
   // Compat API (Lobby/TableCard)
   auth: AuthState;
@@ -52,7 +52,7 @@ closeBuyCoinsPrompt: () => void;
   signOut: () => Promise<void>;
 
   // tables
-  createTable: (p: { kind: "free" | "bet"; betAmount?: number }) => Promise<void>;
+  createTable: (p: { kind: "free" | "bet"; stake?: number }) => Promise<void>;
   joinTable: (tableId: string) => Promise<void>;
   cancelMyTable: () => Promise<void>;
 };
@@ -68,11 +68,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const [currentTable, setCurrentTable] = useState<TableDoc | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-const [buyCoinsPrompt, setBuyCoinsPrompt] = useState<null | { stake: number; balance: number }>(null);
+  const [buyCoinsPrompt, setBuyCoinsPrompt] = useState<null | { stake: number; balance: number }>(null);
 
-function closeBuyCoinsPrompt() {
-  setBuyCoinsPrompt(null);
-}
+  function closeBuyCoinsPrompt() {
+    setBuyCoinsPrompt(null);
+  }
 
   // 1) AUTH STATE
   useEffect(() => {
@@ -92,7 +92,7 @@ function closeBuyCoinsPrompt() {
     return () => unsub();
   }, []);
 
-  // 2) PROFILE LISTENER (UserDamas/{uid})
+  // 2) PROFILE LISTENER (UsersDamas/{uid})
   useEffect(() => {
     if (!authUser) return;
 
@@ -161,6 +161,8 @@ function closeBuyCoinsPrompt() {
       city: p.city,
       age: p.age,
       photoURL: p.photoURL ?? "",
+      balance: 0,
+      locked: 0,
       isOnline: true,
       lastActivity: Date.now(),
       createdAt: Date.now(),
@@ -179,7 +181,7 @@ function closeBuyCoinsPrompt() {
     await signOut();
   }
 
-  async function createTable(p: { kind: "free" | "bet"; betAmount?: number }) {
+  async function createTable(p: { kind: "free" | "bet"; stake?: number }) {
     if (!authUser) throw new Error("Faça login.");
     if (!profile) throw new Error("Complete o perfil antes de jogar.");
 
@@ -189,36 +191,36 @@ function closeBuyCoinsPrompt() {
       createdByCity: profile.city,
       createdByAge: profile.age,
       kind: p.kind,
-      betAmount: p.betAmount,
+      stake: p.stake,
     });
 
     setCurrentTable(newTable);
   }
 
 
-async function joinTable(tableId: string) {
-  if (!authUser) throw new Error("Faça login.");
-  if (!profile) throw new Error("Complete o perfil antes de jogar.");
+  async function joinTable(tableId: string) {
+    if (!authUser) throw new Error("Faça login.");
+    if (!profile) throw new Error("Complete o perfil antes de jogar.");
 
-  const local = tables.find((t) => t.id === tableId);
-  if (!local) throw new Error("Mesa não encontrada localmente.");
+    const local = tables.find((t) => t.id === tableId);
+    if (!local) throw new Error("Mesa não encontrada localmente.");
 
-  // ✅ Se for mesa com aposta: primeiro bloqueia saldo via Function
-  if (local.kind === "bet") {
-    const result = await joinTableWithWager(tableId);
+    // ✅ Se for mesa com aposta: primeiro bloqueia saldo via Function
+    if (local.kind === "bet") {
+      const result = await joinTableWithWager(tableId);
 
-    if (!result.ok && result.reason === "INSUFFICIENT_BALANCE") {
-      setBuyCoinsPrompt({ stake: result.stake, balance: result.balance });
-      return; // não entra na mesa
+      if (!result.ok && result.reason === "INSUFFICIENT_BALANCE") {
+        setBuyCoinsPrompt({ stake: result.stake, balance: result.balance });
+        return; // não entra na mesa
+      }
     }
+
+    // ✅ Se passou (free ou bet com saldo): entra na mesa no Firestore
+    await fbJoinTable(tableId, authUser.uid, profile.name);
+
+    // currentTable será sincronizado pelo listener
+    if (local) setCurrentTable({ ...local, status: "playing" });
   }
-
-  // ✅ Se passou (free ou bet com saldo): entra na mesa no Firestore
-  await fbJoinTable(tableId, authUser.uid, profile.name);
-
-  // currentTable será sincronizado pelo listener
-  if (local) setCurrentTable({ ...local, status: "playing" });
-}
 
   async function cancelMyTable() {
     if (!authUser) return;
@@ -269,8 +271,8 @@ async function joinTable(tableId: string) {
     createTable,
     joinTable,
     cancelMyTable,
-	buyCoinsPrompt,
-closeBuyCoinsPrompt,
+    buyCoinsPrompt,
+    closeBuyCoinsPrompt,
 
   };
 

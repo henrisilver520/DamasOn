@@ -71,7 +71,7 @@ function onPickPhoto(file: File | null) {
       }
     }
 
-    console.log("[SIGNUP] salvando perfil em UserDamas...");
+    console.log("[SIGNUP] salvando perfil em UsersDamas...");
     await saveProfile({
       uid: user.uid,
       email,
@@ -295,5 +295,3 @@ function onPickPhoto(file: File | null) {
     </div>
   );
 }
-
-

@@ -1,9 +1,10 @@
 import { db, firebase } from "@/firebase/firebase";
 import type { TableDoc, TableKind } from "@/types/domain";
 
-const TABLES = "tables";
+const TABLES = "Tables";
 
 function mapTable(id: string, data: any): TableDoc {
+  const stakeValue = data.stake ?? data.betAmount ?? undefined;
   return {
     id,
     createdAt: data.createdAt?.toMillis?.() ?? Date.now(),
@@ -12,7 +13,7 @@ function mapTable(id: string, data: any): TableDoc {
     createdByCity: data.createdByCity ?? undefined,
     createdByAge: data.createdByAge ?? undefined,
     kind: (data.kind as TableKind) ?? "free",
-    betAmount: data.betAmount ?? undefined,
+    stake: stakeValue !== null && stakeValue !== undefined ? Number(stakeValue) : undefined,
     status: (data.status as any) ?? "waiting",
     opponentUid: data.opponentUid ?? undefined,
     opponentName: data.opponentName ?? undefined,
@@ -25,10 +26,11 @@ export async function createTable(params: {
   createdByCity?: string;
   createdByAge?: number;
   kind: TableKind;
-  betAmount?: number;
+  stake?: number;
 }): Promise<TableDoc> {
   const ref = db.collection(TABLES).doc();
   const now = Date.now();
+  const stake = params.kind === "bet" ? Number(params.stake ?? 0) : null;
   const tableData = {
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     createdByUid: params.createdByUid,
@@ -36,7 +38,7 @@ export async function createTable(params: {
     createdByCity: params.createdByCity || null,
     createdByAge: params.createdByAge || null,
     kind: params.kind,
-    betAmount: params.kind === "bet" ? Number(params.betAmount ?? 0) : null,
+    stake,
     status: "waiting",
     opponentUid: null,
     opponentName: null,
@@ -52,7 +54,7 @@ export async function createTable(params: {
     createdByCity: params.createdByCity,
     createdByAge: params.createdByAge,
     kind: params.kind,
-    betAmount: params.kind === "bet" ? params.betAmount : undefined,
+    stake: params.kind === "bet" ? Number(params.stake ?? 0) : undefined,
     status: "waiting",
     opponentUid: undefined,
     opponentName: undefined,

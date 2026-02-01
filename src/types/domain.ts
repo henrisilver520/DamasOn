@@ -6,6 +6,8 @@ export type UserProfile = {
   city: string;
   age: number;
   photoURL?: string;  // ✅ novo
+  balance?: number;
+  locked?: number;
   isOnline: boolean;
   lastActivity?: number;
   createdAt?: number;
@@ -23,7 +25,7 @@ export type TableDoc = {
   createdByCity?: string;
   createdByAge?: number;
   kind: TableKind;
-  betAmount?: number;
+  stake?: number;
   status: TableStatus;
   opponentUid?: string;
   opponentName?: string;

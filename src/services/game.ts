@@ -37,11 +37,11 @@ export async function saveGameState(tableId: string, gameState: Partial<GameStat
     lastMove: firebase.firestore.FieldValue.serverTimestamp()
   };
   
-  await db.collection('tables').doc(tableId).collection('game').doc('state').set(stateToSave);
+  await db.collection('Tables').doc(tableId).collection('game').doc('state').set(stateToSave);
 }
 
 export async function getGameState(tableId: string): Promise<GameState | null> {
-  const doc = await db.collection('tables').doc(tableId).collection('game').doc('state').get();
+  const doc = await db.collection('Tables').doc(tableId).collection('game').doc('state').get();
   if (!doc.exists) return null;
   
   const data = doc.data()!;
@@ -56,7 +56,7 @@ export async function getGameState(tableId: string): Promise<GameState | null> {
 }
 
 export function listenGameState(tableId: string, onUpdate: (state: GameState) => void) {
-  return db.collection('tables').doc(tableId).collection('game').doc('state')
+  return db.collection('Tables').doc(tableId).collection('game').doc('state')
     .onSnapshot((doc) => {
       if (doc.exists) {
         const data = doc.data()!;
@@ -73,7 +73,7 @@ export function listenGameState(tableId: string, onUpdate: (state: GameState) =>
 }
 
 export async function finalizeGame(tableId: string, winner: 'white' | 'black') {
-  await db.collection('tables').doc(tableId).update({
+  await db.collection('Tables').doc(tableId).update({
     status: 'finished',
     winner,
     finishedAt: firebase.firestore.FieldValue.serverTimestamp()

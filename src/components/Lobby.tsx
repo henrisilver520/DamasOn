@@ -8,10 +8,11 @@ import { CheckerBoard } from './CheckerBoard';
 import { BuyCoinsModal } from "./BuyCoinsModal";
 
 export function Lobby() {
-  const { auth, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable, buyCoinsPrompt, closeBuyCoinsPrompt } = useGame();
+  const { auth, profile, tables, onlineUsers, logout, currentTable, leaveTable, setCurrentTable, activeTable, buyCoinsPrompt, closeBuyCoinsPrompt } = useGame();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showBuyCoins, setShowBuyCoins] = useState(false);
   const [viewMode, setViewMode] = useState<'lobby' | 'waiting' | 'playing'>('lobby');
 
   // Sincroniza currentTable com activeTable do Firebase
@@ -37,6 +38,22 @@ export function Lobby() {
   const waitingTables = tables.filter(t => t.status === 'waiting' && t.createdByUid !== auth.user?.id);
   const myTable = tables.find(t => t.createdByUid === auth.user?.id && t.status !== 'finished');
   const isCreator = currentTable?.createdByUid === auth.user?.id;
+  const balance = profile?.balance ?? 0;
+  const locked = profile?.locked ?? 0;
+  const buyCoinsOpen = Boolean(buyCoinsPrompt) || showBuyCoins;
+  const buyCoinsBalance = buyCoinsPrompt?.balance ?? balance;
+
+  const buyCoinsModal = (
+    <BuyCoinsModal
+      open={buyCoinsOpen}
+      stake={buyCoinsPrompt?.stake}
+      balance={buyCoinsBalance}
+      onClose={() => {
+        closeBuyCoinsPrompt();
+        setShowBuyCoins(false);
+      }}
+    />
+  );
 
   // TELA DE ESPERA (criador aguardando oponente)
   if (viewMode === 'waiting' && currentTable && isCreator) {
@@ -63,7 +80,7 @@ export function Lobby() {
             <div className="flex justify-between text-sm mb-2">
               <span className="text-amber-400">Tipo:</span>
               <span className="text-amber-200">
-                {currentTable.kind === 'bet' ? `Aposta (${currentTable.betAmount} fichas)` : 'Amistoso'}
+                {currentTable.kind === 'bet' ? `Aposta (${currentTable.stake ?? 0} moedas)` : 'Amistoso'}
               </span>
             </div>
             <div className="flex justify-between text-sm mb-2">
@@ -98,6 +115,7 @@ export function Lobby() {
             </button>
           </div>
         </div>
+        {buyCoinsModal}
       </div>
     );
   }
@@ -119,12 +137,7 @@ export function Lobby() {
           />
         </div>
 
-        <BuyCoinsModal
-          open={!!buyCoinsPrompt}
-          stake={buyCoinsPrompt?.stake}
-          balance={buyCoinsPrompt?.balance}
-          onClose={closeBuyCoinsPrompt}
-        />
+        {buyCoinsModal}
       </>
     );
   }
@@ -149,6 +162,23 @@ export function Lobby() {
 
           {/* User info */}
           <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-2 rounded-xl bg-amber-900/40 px-3 py-2 text-sm text-amber-200">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+                <span className="font-semibold">{balance}</span>
+                {locked > 0 && (
+                  <span className="text-xs text-amber-400/80">({locked} bloqueadas)</span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowBuyCoins(true)}
+                className="rounded-lg bg-amber-600/70 px-2 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-500"
+              >
+                Comprar
+              </button>
+            </div>
             {/* Minha mesa - botão rápido */}
             {myTable && (
               <button
@@ -183,6 +213,17 @@ export function Lobby() {
               <span className="hidden sm:inline">Estatísticas</span>
             </button>
 
+            <button
+              onClick={() => setShowBuyCoins(true)}
+              className="sm:hidden flex items-center gap-2 px-3 py-2 bg-amber-800/50 hover:bg-amber-700/50 rounded-lg text-amber-200 transition"
+              title="Comprar moedas"
+            >
+              <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+              </svg>
+              <span className="text-xs font-semibold">{balance}</span>
+            </button>
+
             {/* User profile */}
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
@@ -215,7 +256,7 @@ export function Lobby() {
               <span className="text-amber-200 text-sm">
                 Você tem uma mesa {myTable.status === 'waiting' ? 'aguardando oponente' : 'em andamento'}
                 {myTable.kind === 'bet' && (
-                  <span className="ml-2 text-yellow-300">({myTable.betAmount} fichas)</span>
+                  <span className="ml-2 text-yellow-300">({myTable.stake ?? 0} moedas)</span>
                 )}
               </span>
             </div>
@@ -315,6 +356,7 @@ export function Lobby() {
       <CreateTableModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
       <OnlineUsersModal isOpen={showUsersModal} onClose={() => setShowUsersModal(false)} />
       <StatsModal isOpen={showStatsModal} onClose={() => setShowStatsModal(false)} />
+      {buyCoinsModal}
     </div>
   );
 }
